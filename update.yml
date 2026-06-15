@@ -1,0 +1,65 @@
+name: Update World Cup predictions (GitHub Actions)
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wc-update
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build priors from Excel (1930-2026 history decay)
+        env:
+          WC_EXCEL: "wc_data.xlsx"
+          WC_SHEET: "2006-2026"
+          WC_HALFLIFE: "4.0"
+          WC_OUT_PRIORS: "docs/priors.json"
+        run: python build_priors_from_excel.py
+
+      - name: Fetch + predict (API-Football + odds + qimen)
+        env:
+          APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
+          ODDS_KEY: ${{ secrets.ODDS_KEY }}
+          QIMEN_URL: ${{ secrets.QIMEN_URL }}
+          WC_LEAGUE: "1"
+          WC_SEASON: "2026"
+          WC_PRIORS: "docs/priors.json"
+          WC_OUT: "docs/predictions.json"
+        run: python fetch_worldcup.py
+
+      - name: Update Excel with new finished matches
+        env:
+          APISPORTS_KEY: ${{ secrets.APISPORTS_KEY }}
+          WC_EXCEL: "wc_data.xlsx"
+          WC_SHEET: "2006-2026"
+        run: python update_excel.py
+
+      - name: Commit changes
+        run: |
+          git config user.name  "wc-bot"
+          git config user.email "wc-bot@users.noreply.github.com"
+          git add docs/priors.json docs/predictions.json wc_data.xlsx
+          git diff --staged --quiet || git commit -m "auto: update wc $(date -u +%FT%TZ)"
+          git push
