@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>比分模型 LIVE · 2026世界杯量化分析台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0E1218; --panel:#161C26; --panel2:#1B232F; --line:#26303E;
+    --txt:#E6EAF0; --mut:#8A94A6; --faint:#5A6576;
+    --a:#F5A623; --b:#36C5D0; --draw:#8B7FE8; --good:#5BD6A0; --live:#5BD6A0;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:radial-gradient(1200px 600px at 70% -10%, rgba(245,166,35,.06), transparent 60%),
+      radial-gradient(1000px 500px at 10% 110%, rgba(54,197,208,.06), transparent 60%), var(--ink);
+    color:var(--txt); font-family:"Space Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+    line-height:1.5; padding:24px 18px 60px; min-height:100vh;
+  }
+  .wrap{max-width:1080px;margin:0 auto}
+  .mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+  header{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;
+    border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:14px;flex-wrap:wrap}
+  .brand h1{font-size:clamp(22px,4vw,34px);font-weight:700;letter-spacing:-.02em;line-height:1.05}
+  .brand h1 .en{color:var(--faint);font-weight:500;font-size:.5em;display:block;letter-spacing:.18em;margin-top:4px;text-transform:uppercase}
+  .brand p{color:var(--mut);font-size:13px;margin-top:8px;max-width:520px}
+  .ver{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--a);border:1px solid var(--line);border-radius:999px;padding:6px 12px;white-space:nowrap}
+
+  /* data source bar */
+  .src{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--panel);
+    border:1px solid var(--line);border-radius:12px;padding:11px 14px;margin-bottom:18px;font-family:"IBM Plex Mono",monospace;font-size:12px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--faint);flex-shrink:0}
+  .dot.on{background:var(--live);box-shadow:0 0 0 3px rgba(91,214,160,.18);animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+  .src .stat{color:var(--mut)} .src .stat b{color:var(--txt)}
+  .src input{flex:1;min-width:160px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+    color:var(--txt);font-family:"IBM Plex Mono",monospace;font-size:11px;padding:7px 10px}
+  .src button{background:var(--line);border:none;color:var(--txt);font-family:"IBM Plex Mono",monospace;
+    font-size:11px;padding:7px 12px;border-radius:8px;cursor:pointer}
+  .src button:hover{background:#33404f}
+
+  .ctrl{display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:end;
+    background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:18px}
+  .field label{display:block;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:7px;font-family:"IBM Plex Mono",monospace}
+  select{width:100%;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:11px 12px;font-family:"Space Grotesk",sans-serif;font-size:15px;font-weight:500;cursor:pointer}
+  select:focus{outline:2px solid var(--a);outline-offset:1px} #teamB:focus{outline-color:var(--b)}
+  .vs{display:flex;flex-direction:column;align-items:center;gap:8px;padding-bottom:4px}
+  .vs .glyph{font-family:"IBM Plex Mono",monospace;color:var(--mut);font-size:13px;font-weight:600}
+  .venue{display:flex;gap:4px;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:4px}
+  .venue button{background:none;border:none;color:var(--mut);font-family:"IBM Plex Mono",monospace;font-size:11px;padding:5px 9px;border-radius:999px;cursor:pointer;white-space:nowrap}
+  .venue button.on{background:var(--line);color:var(--txt)}
+
+  .mod{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 18px 20px;margin-bottom:16px}
+  .mod-h{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+  .mod-n{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink);background:var(--a);font-weight:600;border-radius:6px;padding:2px 7px;letter-spacing:.05em}
+  .mod-h h2{font-size:16px;font-weight:600;letter-spacing:-.01em}
+  .mod-h .sub{color:var(--faint);font-size:11px;font-family:"IBM Plex Mono",monospace;letter-spacing:.1em;margin-left:auto}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+
+  .tcard{background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:16px;position:relative;overflow:hidden}
+  .tcard.A{border-top:2px solid var(--a)} .tcard.B{border-top:2px solid var(--b)}
+  .tcard .nm{font-size:20px;font-weight:700;letter-spacing:-.01em;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .tcard .meta{color:var(--mut);font-size:12px;margin-top:3px;font-family:"IBM Plex Mono",monospace}
+  .liveTag{font-family:"IBM Plex Mono",monospace;font-size:9px;color:var(--live);border:1px solid var(--live);border-radius:5px;padding:1px 5px;letter-spacing:.08em}
+  .rec{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--mut);margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
+  .rec b{color:var(--txt)}
+  .stat-row{display:flex;justify-content:space-between;align-items:center;margin-top:13px;font-size:12px}
+  .stat-row span:first-child{color:var(--faint);font-family:"IBM Plex Mono",monospace;letter-spacing:.06em}
+  .bar{height:7px;border-radius:4px;background:var(--line);overflow:hidden;flex:1;margin:0 10px}
+  .bar i{display:block;height:100%;border-radius:4px}
+  .val{font-family:"IBM Plex Mono",monospace;font-weight:600;min-width:38px;text-align:right}
+  .form{display:flex;align-items:center;gap:9px;margin-top:14px}
+  .form label{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--faint);letter-spacing:.1em;white-space:nowrap}
+  input[type=range]{flex:1;accent-color:var(--a)} .tcard.B input[type=range]{accent-color:var(--b)}
+  .form .fv{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--mut);min-width:30px;text-align:right}
+
+  table.vars{width:100%;border-collapse:collapse;font-size:13px}
+  table.vars td{padding:9px 6px;border-bottom:1px solid var(--line)}
+  table.vars tr:last-child td{border-bottom:none}
+  table.vars td:first-child{color:var(--mut);font-size:12px}
+  table.vars td.num{font-family:"IBM Plex Mono",monospace;text-align:right;font-weight:500}
+  .ca{color:var(--a)} .cb{color:var(--b)} .cd{color:var(--draw)}
+  .lam{display:flex;gap:12px;margin-top:14px}
+  .lam .box{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:12px;text-align:center}
+  .lam .box .k{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.12em;color:var(--faint);text-transform:uppercase}
+  .lam .box .v{font-family:"IBM Plex Mono",monospace;font-size:26px;font-weight:600;margin-top:4px}
+
+  .sigwrap{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:20px;align-items:start}
+  .matrix-shell{position:relative}
+  .axis-top{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--b);text-align:center;margin-bottom:6px;letter-spacing:.1em}
+  .axis-left{position:absolute;left:-2px;top:50%;transform:translateY(-50%) rotate(-90deg);transform-origin:center;font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--a);letter-spacing:.1em;white-space:nowrap}
+  .mtx{display:grid;grid-template-columns:22px repeat(6,1fr);gap:4px;margin-left:14px}
+  .mtx .hd{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--faint);text-align:center;align-self:center}
+  .cell{aspect-ratio:1;border-radius:7px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:"IBM Plex Mono",monospace;border:1px solid transparent;transition:transform .12s}
+  .cell .s{font-size:11px;font-weight:600;opacity:.92} .cell .p{font-size:9px;opacity:.7;margin-top:1px}
+  .cell.peak{border-color:#fff;transform:scale(1.04);box-shadow:0 0 0 1px rgba(255,255,255,.25)}
+  .legend{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--faint);display:flex;align-items:center;gap:8px;margin:12px 0 0 14px}
+  .legend .scale{height:8px;flex:1;border-radius:4px;background:linear-gradient(90deg,#1B232F,#2c5a63,#36C5D0)}
+  .wdl{margin-bottom:16px}
+  .wdl .track{display:flex;height:34px;border-radius:9px;overflow:hidden;border:1px solid var(--line)}
+  .wdl .seg{display:flex;align-items:center;justify-content:center;font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600;color:var(--ink);min-width:0}
+  .wdl .lbls{display:flex;justify-content:space-between;font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--mut);margin-top:7px}
+  .toplist{list-style:none}
+  .toplist li{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px}
+  .toplist li:last-child{border-bottom:none}
+  .toplist .rank{font-family:"IBM Plex Mono",monospace;color:var(--faint);font-size:11px;width:16px}
+  .toplist .sc{font-family:"IBM Plex Mono",monospace;font-weight:600;width:46px}
+  .toplist .pbar{flex:1;height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+  .toplist .pbar i{display:block;height:100%;background:var(--mut);border-radius:3px}
+  .toplist .pv{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--mut);width:46px;text-align:right}
+  .band{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px;margin-top:6px}
+  .band .row{display:flex;justify-content:space-between;font-size:13px;padding:5px 0}
+  .band .row span:first-child{color:var(--mut)} .band .row .mono{font-weight:600}
+  .band .hint{font-size:11px;color:var(--faint);margin-top:8px;line-height:1.5}
+  .confwrap{display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+  .gauge{position:relative;width:150px;height:84px;flex-shrink:0}
+  .conf-text{flex:1;min-width:200px}
+  .conf-tier{font-size:26px;font-weight:700;letter-spacing:-.01em}
+  .conf-desc{color:var(--mut);font-size:13px;margin-top:6px}
+  .conf-factors{display:flex;gap:18px;margin-top:12px;flex-wrap:wrap}
+  .conf-factors div{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--faint)}
+  .conf-factors b{color:var(--txt);font-weight:600}
+
+  /* auto fixtures */
+  #fxMod{display:none}
+  .fxlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+  .fx{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:12px}
+  .fx .t{font-size:14px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .fx .d{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--faint);margin-top:3px}
+  .fx .ls{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--live)}
+  .fx .pick{display:flex;gap:6px;margin-top:9px;align-items:center;font-family:"IBM Plex Mono",monospace;font-size:11px}
+  .fx .pip{height:5px;border-radius:3px;flex:0 0 auto}
+  .fx .meta{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--mut);margin-top:8px;display:flex;justify-content:space-between}
+  /* three-source rows */
+  .srcrow{display:flex;align-items:center;gap:7px;margin-top:7px;font-family:"IBM Plex Mono",monospace;font-size:10px}
+  .srcrow .lab{width:34px;color:var(--faint);flex:0 0 auto}
+  .srcrow .trio{display:flex;flex:1;height:8px;border-radius:3px;overflow:hidden;background:var(--line)}
+  .srcrow .trio i{display:block;height:100%}
+  .srcrow .na{color:var(--faint);font-size:10px}
+  .fxhead{font-size:11px;color:var(--faint);font-family:"IBM Plex Mono",monospace;margin-top:8px;display:flex;justify-content:space-between}
+  .qm{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--draw);margin-top:7px;border-top:1px dashed var(--line);padding-top:6px}
+  .qm b{color:var(--txt)}
+  .edge{font-family:"IBM Plex Mono",monospace;font-size:10px;padding:1px 6px;border-radius:5px;border:1px solid var(--line)}
+  .edge.pos{color:var(--good);border-color:var(--good)} .edge.neg{color:var(--faint)}
+  /* weight sliders */
+  .weights{display:flex;gap:18px;flex-wrap:wrap;background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:12px 14px;margin-bottom:14px}
+  .weights .w{display:flex;flex-direction:column;gap:4px;min-width:150px;flex:1}
+  .weights .w .wl{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.08em;display:flex;justify-content:space-between}
+  .weights .w .wl .wv{color:var(--txt)}
+  .weights .w.m .wl{color:var(--a)} .weights .w.k .wl{color:var(--b)} .weights .w.q .wl{color:var(--draw)}
+  .weights .w.m input{accent-color:var(--a)} .weights .w.k input{accent-color:var(--b)} .weights .w.q input{accent-color:var(--draw)}
+  .weights .note{flex-basis:100%;font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--faint);margin-top:2px}
+
+  details.groups{background:var(--panel);border:1px solid var(--line);border-radius:14px;margin-bottom:16px;overflow:hidden}
+  details.groups summary{cursor:pointer;padding:15px 18px;font-size:14px;font-weight:600;list-style:none;display:flex;align-items:center;gap:10px}
+  details.groups summary::-webkit-details-marker{display:none}
+  details.groups summary .mod-n{background:var(--b)}
+  details.groups[open] summary{border-bottom:1px solid var(--line)}
+  .gband{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:1px;background:var(--line)}
+  .gcell{background:var(--panel);padding:12px 14px}
+  .gcell .gh{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--a);letter-spacing:.1em;margin-bottom:6px}
+  .gcell ul{list-style:none;font-size:12px;color:var(--mut);line-height:1.7}
+  footer{color:var(--faint);font-size:11px;line-height:1.6;margin-top:8px;border-top:1px solid var(--line);padding-top:16px}
+  footer b{color:var(--mut)}
+  @media(max-width:760px){.ctrl{grid-template-columns:1fr;gap:12px}.vs{flex-direction:row;gap:14px;padding:2px 0}.grid2{grid-template-columns:1fr}.sigwrap{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <h1>比分模型 LIVE<span class="en">Scoreline Model · Live · 2026 WC</span></h1>
+      <p>泊松期望进球框架,接入 API-Football 实时数据,每小时融合赛中真实攻防表现重算评分。</p>
+    </div>
+    <div class="ver mono">v1.1 · POISSON-xG · LIVE</div>
+  </header>
+
+  <!-- DATA SOURCE BAR -->
+  <div class="src">
+    <span class="dot" id="dot"></span>
+    <span class="stat" id="srcStatus"><b>离线 · 先验模式</b></span>
+    <span class="stat" id="srcMeta"></span>
+    <input id="srcUrl" value="./predictions.json" spellcheck="false">
+    <button id="srcLoad">载入</button>
+  </div>
+
+  <!-- CONTROLS -->
+  <div class="ctrl">
+    <div class="field"><label>球队 A · TEAM A</label><select id="teamA"></select></div>
+    <div class="vs">
+      <span class="glyph">VS</span>
+      <div class="venue" id="venue">
+        <button data-v="N" class="on">中立场</button><button data-v="A">A主</button><button data-v="B">B主</button>
+      </div>
+    </div>
+    <div class="field"><label>球队 B · TEAM B</label><select id="teamB"></select></div>
+  </div>
+
+  <!-- AUTO FIXTURES (live only) -->
+  <section class="mod" id="fxMod">
+    <div class="mod-h"><span class="mod-n">★</span><h2>三源融合 · 近期赛程</h2><span class="sub">MODEL · MARKET · QIMEN</span></div>
+    <div class="weights">
+      <div class="w m"><div class="wl"><span>模型 xG 权重</span><span class="wv" id="wmV">0.50</span></div><input type="range" id="wm" min="0" max="100" value="50"></div>
+      <div class="w k"><div class="wl"><span>市场赔率 权重</span><span class="wv" id="wkV">0.50</span></div><input type="range" id="wk" min="0" max="100" value="50"></div>
+      <div class="w q"><div class="wl"><span>奇门玄学 权重</span><span class="wv" id="wqV">0.00</span></div><input type="range" id="wq" min="0" max="100" value="0"></div>
+      <div class="note">融合 = 归一化(w_模型·模型 + w_市场·市场 + w_奇门·奇门)。奇门默认 0：照常起局显示，但不参与计算，除非你拨高它。EDGE = 融合−市场，正值=模型认为市场低估。</div>
+    </div>
+    <div class="fxlist" id="fxList"></div>
+  </section>
+
+  <section class="mod">
+    <div class="mod-h"><span class="mod-n">01</span><h2>双方数据</h2><span class="sub">TEAM PROFILE</span></div>
+    <div class="grid2"><div class="tcard A" id="cardA"></div><div class="tcard B" id="cardB"></div></div>
+  </section>
+
+  <section class="mod">
+    <div class="mod-h"><span class="mod-n">02</span><h2>关键变量</h2><span class="sub">MODEL INPUTS → λ</span></div>
+    <table class="vars" id="varsTable"></table>
+    <div class="lam">
+      <div class="box"><div class="k">期望进球 λ · A</div><div class="v ca" id="lamA">–</div></div>
+      <div class="box"><div class="k">期望进球 λ · B</div><div class="v cb" id="lamB">–</div></div>
+      <div class="box"><div class="k">期望总进球</div><div class="v" id="lamT">–</div></div>
+    </div>
+  </section>
+
+  <section class="mod">
+    <div class="mod-h"><span class="mod-n">04</span><h2>比分倾向区间</h2><span class="sub">SCORELINE DISTRIBUTION</span></div>
+    <div class="wdl">
+      <div class="track" id="wdlTrack"></div>
+      <div class="lbls"><span class="ca" id="wA">A胜 –</span><span class="cd" id="wD">平 –</span><span class="cb" id="wB">B胜 –</span></div>
+    </div>
+    <div class="sigwrap">
+      <div class="matrix-shell">
+        <div class="axis-top">B 进球数 →</div>
+        <div class="axis-left" id="axisLeft">A 进球数 →</div>
+        <div class="mtx" id="matrix"></div>
+        <div class="legend"><span>低概率</span><div class="scale"></div><span>高概率</span></div>
+      </div>
+      <div><ul class="toplist" id="topList"></ul><div class="band" id="band"></div></div>
+    </div>
+  </section>
+
+  <section class="mod">
+    <div class="mod-h"><span class="mod-n">03</span><h2>置信等级</h2><span class="sub">CONFIDENCE</span></div>
+    <div class="confwrap">
+      <svg class="gauge" id="gauge" viewBox="0 0 150 84"></svg>
+      <div class="conf-text">
+        <div class="conf-tier" id="confTier">–</div>
+        <div class="conf-desc" id="confDesc"></div>
+        <div class="conf-factors" id="confFactors"></div>
+      </div>
+    </div>
+  </section>
+
+  <details class="groups">
+    <summary><span class="mod-n">05</span>全部 48 队 · 12 个小组（点击展开）</summary>
+    <div class="gband" id="groupBand"></div>
+  </details>
+
+  <footer>
+    <b>三源数据流.</b> 每小时：API-Football(fixtures+standings)→Poisson xG 模型 + 真太阳时校正→可选调奇门服务起局。每2小时：The Odds API 拉 h2h 赔率，去水位后得市场隐含概率（500/月配额下的安全频率）。三者写入 <code>predictions.json</code>，本页同源读取、每小时自刷。<br>
+    <b>关于权重.</b> 模型与市场是有实证基础的信号，默认各 0.5；奇门为玄学参考、<b>无统计验证效力</b>，默认权重 0——它照常起局、照常显示真太阳时与盘面倾向，但不参与计算，除非你主动拨高。这样核心预测始终干净，玄学只作旁参。<br>
+    <b>注意.</b> 分析与学习用途；足球高方差，模型给的是概率分布而非定论，不构成投注建议。
+  </footer>
+</div>
+
+<script>
+const T = [
+  {n:"墨西哥",e:"MEX",g:"A",c:"中北美·东道主",r:14,pr:1760},{n:"南非",e:"RSA",g:"A",c:"非洲",r:58,pr:1660},
+  {n:"韩国",e:"KOR",g:"A",c:"亚洲",r:25,pr:1730},{n:"捷克",e:"CZE",g:"A",c:"欧洲",r:42,pr:1730},
+  {n:"加拿大",e:"CAN",g:"B",c:"中北美·东道主",r:30,pr:1740},{n:"波黑",e:"BIH",g:"B",c:"欧洲",r:70,pr:1700},
+  {n:"卡塔尔",e:"QAT",g:"B",c:"亚洲",r:55,pr:1620},{n:"瑞士",e:"SUI",g:"B",c:"欧洲",r:19,pr:1780},
+  {n:"巴西",e:"BRA",g:"C",c:"南美",r:6,pr:2000},{n:"摩洛哥",e:"MAR",g:"C",c:"非洲",r:8,pr:1860},
+  {n:"海地",e:"HAI",g:"C",c:"中北美",r:90,pr:1540},{n:"苏格兰",e:"SCO",g:"C",c:"欧洲",r:35,pr:1700},
+  {n:"美国",e:"USA",g:"D",c:"中北美·东道主",r:16,pr:1760},{n:"巴拉圭",e:"PAR",g:"D",c:"南美",r:40,pr:1680},
+  {n:"澳大利亚",e:"AUS",g:"D",c:"亚洲",r:27,pr:1700},{n:"土耳其",e:"TUR",g:"D",c:"欧洲",r:26,pr:1760},
+  {n:"德国",e:"GER",g:"E",c:"欧洲",r:10,pr:1955},{n:"库拉索",e:"CUW",g:"E",c:"中北美",r:80,pr:1560},
+  {n:"科特迪瓦",e:"CIV",g:"E",c:"非洲",r:40,pr:1720},{n:"厄瓜多尔",e:"ECU",g:"E",c:"南美",r:23,pr:1760},
+  {n:"荷兰",e:"NED",g:"F",c:"欧洲",r:7,pr:1965},{n:"日本",e:"JPN",g:"F",c:"亚洲",r:18,pr:1800},
+  {n:"瑞典",e:"SWE",g:"F",c:"欧洲",r:33,pr:1740},{n:"突尼斯",e:"TUN",g:"F",c:"非洲",r:45,pr:1660},
+  {n:"比利时",e:"BEL",g:"G",c:"欧洲",r:9,pr:1900},{n:"埃及",e:"EGY",g:"G",c:"非洲",r:32,pr:1720},
+  {n:"伊朗",e:"IRN",g:"G",c:"亚洲",r:21,pr:1730},{n:"新西兰",e:"NZL",g:"G",c:"大洋洲",r:85,pr:1560},
+  {n:"西班牙",e:"ESP",g:"H",c:"欧洲",r:2,pr:2090},{n:"佛得角",e:"CPV",g:"H",c:"非洲",r:70,pr:1600},
+  {n:"沙特阿拉伯",e:"KSA",g:"H",c:"亚洲",r:61,pr:1620},{n:"乌拉圭",e:"URU",g:"H",c:"南美",r:17,pr:1840},
+  {n:"法国",e:"FRA",g:"I",c:"欧洲",r:3,pr:2075},{n:"塞内加尔",e:"SEN",g:"I",c:"非洲",r:19,pr:1790},
+  {n:"伊拉克",e:"IRQ",g:"I",c:"亚洲",r:57,pr:1600},{n:"挪威",e:"NOR",g:"I",c:"欧洲",r:30,pr:1820},
+  {n:"阿根廷",e:"ARG",g:"J",c:"南美·卫冕",r:1,pr:2080},{n:"阿尔及利亚",e:"ALG",g:"J",c:"非洲",r:36,pr:1720},
+  {n:"奥地利",e:"AUT",g:"J",c:"欧洲",r:22,pr:1760},{n:"约旦",e:"JOR",g:"J",c:"亚洲",r:63,pr:1600},
+  {n:"葡萄牙",e:"POR",g:"K",c:"欧洲",r:5,pr:1985},{n:"刚果(金)",e:"COD",g:"K",c:"非洲",r:55,pr:1660},
+  {n:"乌兹别克斯坦",e:"UZB",g:"K",c:"亚洲",r:50,pr:1620},{n:"哥伦比亚",e:"COL",g:"K",c:"南美",r:13,pr:1820},
+  {n:"英格兰",e:"ENG",g:"L",c:"欧洲",r:4,pr:2010},{n:"克罗地亚",e:"CRO",g:"L",c:"欧洲",r:11,pr:1840},
+  {n:"加纳",e:"GHA",g:"L",c:"非洲",r:70,pr:1680},{n:"巴拿马",e:"PAN",g:"L",c:"中北美",r:30,pr:1640},
+];
+const BYCODE = Object.fromEntries(T.map(t=>[t.e,t]));
+const HOSTS=new Set(["MEX","USA","CAN"]);
+const BASE=1.35, fact=[1,1,2,6,24,120,720,5040,40320,362880];
+const pois=(k,l)=>Math.exp(-l)*Math.pow(l,k)/fact[k];
+const S=pr=>Math.max(0,Math.min(1,(pr-1490)/620));
+const atk=pr=>0.60+1.00*S(pr), def=pr=>1.40-0.80*S(pr);
+// use live blended multipliers when loaded, else prior
+const mAtk=t=>t.atkLive??atk(t.pr);
+const mDef=t=>t.dffLive??def(t.pr);
+
+let venue="N", formA=0, formB=0, LIVE={on:false,updated:null,avg:null,played:0,fixtures:[]};
+
+const selA=document.getElementById("teamA"), selB=document.getElementById("teamB");
+T.forEach((t,i)=>{selA.add(new Option(`${t.g} · ${t.n}`,i));selB.add(new Option(`${t.g} · ${t.n}`,i));});
+selA.value=36; selB.value=32;
+
+(function(){const gr={};T.forEach(t=>{(gr[t.g]=gr[t.g]||[]).push(t);});
+  const band=document.getElementById("groupBand");
+  Object.keys(gr).sort().forEach(g=>{const d=document.createElement("div");d.className="gcell";
+    d.innerHTML=`<div class="gh">${g} 组</div><ul>`+gr[g].map(t=>`<li>${t.n} <span style="color:var(--faint)">·#${t.r}</span></li>`).join("")+`</ul>`;
+    band.appendChild(d);});})();
+
+function heat(x){const c0=[27,35,47],c1=[54,197,208],t=Math.pow(x,0.55);
+  const m=i=>Math.round(c0[i]+(c1[i]-c0[i])*t);return `rgb(${m(0)},${m(1)},${m(2)})`;}
+function bar(p,c){return `<i style="width:${(p*100).toFixed(0)}%;background:${c}"></i>`;}
+
+/* ---------- live data ---------- */
+async function loadLive(url){
+  const dot=document.getElementById("dot"), st=document.getElementById("srcStatus");
+  try{
+    const res=await fetch(url,{cache:"no-store"});
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    const d=await res.json();
+    // reset then merge
+    T.forEach(t=>{delete t.atkLive;delete t.dffLive;delete t.rec;});
+    (d.teams||[]).forEach(tt=>{const t=BYCODE[tt.code];if(t){t.atkLive=tt.atk;t.dffLive=tt.dff;t.rec=tt.rec;}});
+    LIVE={on:true,updated:d.updated,avg:d.avgGoals,played:d.matchesPlayed,fixtures:d.fixtures||[]};
+    dot.classList.add("on");
+    st.innerHTML=`<b style="color:var(--live)">实时已接入</b>`;
+    const ago=d.updated?new Date(d.updated).toLocaleString():"—";
+    document.getElementById("srcMeta").innerHTML=
+      `· 更新 <b>${ago}</b> · 已踢 <b>${d.matchesPlayed}</b> 场 · 场均 <b>${d.avgGoals}</b> 球`;
+    renderFixtures();
+    render();
+  }catch(e){
+    dot.classList.remove("on");
+    st.innerHTML=`<b>离线 · 先验模式</b>`;
+    document.getElementById("srcMeta").textContent=`· 未读到 predictions.json（${e.message}）。需与本页同源托管。`;
+    LIVE.on=false; document.getElementById("fxMod").style.display="none";
+  }
+}
+let W={m:0.5,k:0.5,q:0.0};  // fusion weights (model / market / qimen)
+function qimenDist(q){       // {favor,strength} -> [pHome,pDraw,pAway]
+  const w=[1,1,1], idx={home:0,draw:1,away:2}[q.favor]??1;
+  w[idx]+=3*(q.strength||0); const s=w[0]+w[1]+w[2];
+  return [w[0]/s,w[1]/s,w[2]/s];
+}
+function fuse(f){
+  const M=[f.model.pH,f.model.pD,f.model.pA];
+  const srcs=[{p:M,w:W.m}];
+  if(f.market) srcs.push({p:[f.market.pH,f.market.pD,f.market.pA],w:W.k});
+  if(f.qimen)  srcs.push({p:qimenDist(f.qimen),w:W.q});
+  let tw=srcs.reduce((a,s)=>a+s.w,0); if(tw<=0){tw=1;srcs[0].w=1;}
+  const F=[0,1,2].map(i=>srcs.reduce((a,s)=>a+s.w*s.p[i],0)/tw);
+  return {M,F,K:f.market?[f.market.pH,f.market.pD,f.market.pA]:null};
+}
+function trio(p){return `<div class="trio"><i style="width:${p[0]*100}%;background:var(--a)"></i><i style="width:${p[1]*100}%;background:var(--draw)"></i><i style="width:${p[2]*100}%;background:var(--b)"></i></div>`;}
+
+function renderFixtures(){
+  const mod=document.getElementById("fxMod"), list=document.getElementById("fxList");
+  const fxs=(LIVE.fixtures||[]).slice(0,9);
+  if(!fxs.length){mod.style.display="none";return;}
+  mod.style.display="block";
+  list.innerHTML=fxs.map(f=>{
+    const H=BYCODE[f.home],A=BYCODE[f.away];if(!H||!A)return"";
+    const {M,F,K}=fuse(f);
+    const lab=["胜","平","负"];
+    const pickI=F.indexOf(Math.max(...F));
+    const pick=pickI===0?`${H.n}胜`:pickI===2?`${A.n}胜`:"平局";
+    const edge=K?(F[pickI]-K[pickI]):null;
+    const edgeHtml=edge!=null?`<span class="edge ${edge>0.03?'pos':'neg'}">EDGE ${edge>0?'+':''}${(edge*100).toFixed(0)}%</span>`:"";
+    const dt=new Date(f.date).toLocaleString([], {month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"});
+    const ls=f.liveScore?`<span class="ls">LIVE ${f.liveScore[0]??0}-${f.liveScore[1]??0}</span>`:"";
+    const qm=f.tst?`<div class="qm">真太阳时 <b>${f.tst.tst}</b> · ${f.tst.shichen}${f.qimen?` · 倾向 <b>${ {home:H.n,away:A.n,draw:'平'}[f.qimen.favor] }</b>(${(f.qimen.strength*100).toFixed(0)}%)`:''}${f.qimen?.summary?` · ${f.qimen.summary}`:''}</div>`:"";
+    return `<div class="fx">
+      <div class="t"><span>${H.n} vs ${A.n}</span>${ls}</div>
+      <div class="d">${dt} · ${f.confTier}置信(${f.conf}) · 预期 ${f.lamH}-${f.lamA}</div>
+      <div class="srcrow"><span class="lab">模型</span>${trio(M)}</div>
+      <div class="srcrow"><span class="lab">市场</span>${K?trio(K):'<span class="na">— 无赔率（每2小时更新）</span>'}</div>
+      <div class="srcrow"><span class="lab">融合</span>${trio(F)}</div>
+      <div class="fxhead"><span style="color:var(--txt)">${pick} ${(F[pickI]*100).toFixed(0)}%</span>${edgeHtml}</div>
+      ${qm}
+    </div>`;
+  }).join("");
+}
+
+function compute(){
+  const A=T[+selA.value], B=T[+selB.value];
+  const fA=1+formA, fB=1+formB; let vA=1,vB=1;
+  if(venue==="A"){vA=1.12;vB=0.93;} if(venue==="B"){vB=1.12;vA=0.93;}
+  const lamA=BASE*mAtk(A)*mDef(B)*vA*fA, lamB=BASE*mAtk(B)*mDef(A)*vB*fB;
+  const N=9; let pW=0,pD=0,pL=0; const cells=[]; let peak={p:-1,i:0,j:0}; const sp={};
+  for(let i=0;i<N;i++)for(let j=0;j<N;j++){const p=pois(i,lamA)*pois(j,lamB);
+    if(i>j)pW+=p;else if(i===j)pD+=p;else pL+=p; sp[`${i}-${j}`]=p;
+    if(i<=5&&j<=5){cells.push({i,j,p});if(p>peak.p)peak={p,i,j};}}
+  return {A,B,lamA,lamB,pW,pD,pL,cells,peak,sp,fA,fB,vA,vB};
+}
+
+function render(){
+  const D=compute(); const {A,B,lamA,lamB,pW,pD,pL,cells,peak,sp}=D;
+  const recLine=t=>t.rec?`<div class="rec">本届 <b>${t.rec.w}胜${t.rec.d}平${t.rec.l}负</b> · 进 <b>${t.rec.gf}</b> 失 <b>${t.rec.ga}</b>（${t.rec.played}场）</div>`:"";
+  const tag=t=>t.atkLive!=null?`<span class="liveTag">LIVE</span>`:"";
+  const card=(t,form,fid,fvid)=>`
+    <div class="nm">${t.n}<span class="meta">${t.e}</span>${tag(t)}</div>
+    <div class="meta">${t.g}组 · ${t.c} · FIFA #${t.r}</div>
+    ${recLine(t)}
+    <div class="stat-row"><span>POWER</span><div class="bar">${bar(S(t.pr),t.e===A.e?'var(--a)':'var(--b)')}</div><span class="val">${t.pr}</span></div>
+    <div class="stat-row"><span>攻击</span><div class="bar">${bar((mAtk(t)-0.6)/1.0,'var(--a)')}</div><span class="val">${mAtk(t).toFixed(2)}</span></div>
+    <div class="stat-row"><span>防守</span><div class="bar">${bar((1.40-mDef(t))/0.80,'var(--good)')}</div><span class="val">${mDef(t).toFixed(2)}</span></div>
+    <div class="form"><label>状态调整</label>
+      <input type="range" id="${fid}" min="-3" max="3" step="1" value="${Math.round(form*20)}">
+      <span class="fv" id="${fvid}">${form>0?'+':''}${Math.round(form*100)}%</span></div>`;
+  document.getElementById("cardA").innerHTML=card(A,formA,"frmA","fvA");
+  document.getElementById("cardB").innerHTML=card(B,formB,"frmB","fvB");
+  document.getElementById("frmA").oninput=e=>{formA=(+e.target.value)*0.05;render();};
+  document.getElementById("frmB").oninput=e=>{formB=(+e.target.value)*0.05;render();};
+
+  const gap=A.pr-B.pr, vt=document.getElementById("varsTable");
+  const live=A.atkLive!=null?`<span class="liveTag">实时</span>`:"";
+  const vrow=(k,a,b)=>`<tr><td>${k}</td><td class="num ca">${a}</td><td class="num cb">${b}</td></tr>`;
+  vt.innerHTML=`<tr><td style="color:var(--faint)">变量 ${live}</td><td class="num ca">${A.e}</td><td class="num cb">${B.e}</td></tr>`+
+    vrow("实力评分 PR",A.pr,B.pr)+vrow("攻击系数",mAtk(A).toFixed(2),mAtk(B).toFixed(2))+
+    vrow("防守系数(被攻破)",mDef(A).toFixed(2),mDef(B).toFixed(2))+
+    vrow("场地系数",D.vA.toFixed(2),D.vB.toFixed(2))+vrow("状态调整",D.fA.toFixed(2),D.fB.toFixed(2))+
+    `<tr><td>实力差 (A−B)</td><td class="num" colspan="2" style="text-align:right;color:${gap>=0?'var(--a)':'var(--b)'}">${gap>=0?'+':''}${gap}</td></tr>`;
+  document.getElementById("lamA").textContent=lamA.toFixed(2);
+  document.getElementById("lamB").textContent=lamB.toFixed(2);
+  document.getElementById("lamT").textContent=(lamA+lamB).toFixed(2);
+
+  const tot=pW+pD+pL, track=document.getElementById("wdlTrack");
+  const seg=(p,c,s)=>`<div class="seg" style="flex:${p};background:${c}">${s?(p/tot*100).toFixed(0)+'%':''}</div>`;
+  track.innerHTML=seg(pW,'var(--a)',pW/tot>0.08)+seg(pD,'var(--draw)',pD/tot>0.08)+seg(pL,'var(--b)',pL/tot>0.08);
+  document.getElementById("wA").textContent=`${A.e}胜 ${(pW/tot*100).toFixed(1)}%`;
+  document.getElementById("wD").textContent=`平 ${(pD/tot*100).toFixed(1)}%`;
+  document.getElementById("wB").textContent=`${B.e}胜 ${(pL/tot*100).toFixed(1)}%`;
+
+  const mx=document.getElementById("matrix"), maxP=peak.p; let html=`<div class="hd"></div>`;
+  for(let j=0;j<6;j++)html+=`<div class="hd">${j}</div>`;
+  for(let i=0;i<6;i++){html+=`<div class="hd">${i}</div>`;
+    for(let j=0;j<6;j++){const c=cells.find(x=>x.i===i&&x.j===j),isP=(i===peak.i&&j===peak.j);
+      const tc=c.p/maxP>0.5?'#0E1218':'var(--txt)';
+      html+=`<div class="cell${isP?' peak':''}" style="background:${heat(c.p/maxP)};color:${tc}"><span class="s">${i}-${j}</span><span class="p">${(c.p*100).toFixed(0)}%</span></div>`;}}
+  mx.innerHTML=html;
+  document.getElementById("axisLeft").textContent=`${A.e} 进球数 →`;
+  document.querySelector(".axis-top").textContent=`${B.e} 进球数 →`;
+
+  const sorted=Object.entries(sp).sort((a,b)=>b[1]-a[1]).slice(0,5), maxSc=sorted[0][1];
+  document.getElementById("topList").innerHTML=
+    `<li style="border-bottom:1px solid var(--line);color:var(--faint);font-family:'IBM Plex Mono';font-size:11px;letter-spacing:.1em">最可能比分 · ${A.e}-${B.e}</li>`+
+    sorted.map((s,k)=>`<li><span class="rank">${k+1}</span><span class="sc">${s[0]}</span><div class="pbar"><i style="width:${(s[1]/maxSc*100).toFixed(0)}%"></i></div><span class="pv">${(s[1]*100).toFixed(1)}%</span></li>`).join("");
+
+  const allS=Object.entries(sp).sort((a,b)=>b[1]-a[1]); let cum=0,set=[];
+  for(const [sc,p] of allS){cum+=p;set.push(sc);if(cum>=0.60)break;}
+  let o25=0;for(let i=0;i<9;i++)for(let j=0;j<9;j++){if(i+j>=3)o25+=pois(i,lamA)*pois(j,lamB);}
+  let btts=0;for(let i=1;i<9;i++)for(let j=1;j<9;j++)btts+=pois(i,lamA)*pois(j,lamB);
+  document.getElementById("band").innerHTML=
+    `<div class="row"><span>期望比分</span><span class="mono">${lamA.toFixed(1)} – ${lamB.toFixed(1)}</span></div>
+     <div class="row"><span>60% 倾向区间</span><span class="mono">${set.slice(0,6).join(" / ")}</span></div>
+     <div class="row"><span>大于2.5球</span><span class="mono">${(o25*100).toFixed(0)}%</span></div>
+     <div class="row"><span>双方均进球</span><span class="mono">${(btts*100).toFixed(0)}%</span></div>
+     <div class="hint">"倾向区间" = 概率从高到低累计至 60% 覆盖的比分集合。</div>`;
+
+  const topO=Math.max(pW,pD,pL)/tot, sc=Math.max(0,Math.min(100,Math.abs(gap)/3.2+(topO-0.34)*135));
+  let tier,desc,col;
+  if(sc>=78){tier="极高";desc="实力差距与结果集中度都很大,方向性可靠度高。";col="var(--good)";}
+  else if(sc>=58){tier="高";desc="一方明显占优,主流结果概率突出。";col="var(--a)";}
+  else if(sc>=38){tier="中";desc="有倾向但不稳,临场因素足以改变走势。";col="var(--draw)";}
+  else if(sc>=20){tier="较低";desc="两队接近,平局与冷门概率都不低。";col="var(--b)";}
+  else{tier="低";desc="势均力敌,模型难给明确方向,谨慎参考。";col="var(--mut)";}
+  const ct=document.getElementById("confTier");ct.textContent=tier+`　${sc.toFixed(0)}/100`;ct.style.color=col;
+  document.getElementById("confDesc").textContent=desc;
+  document.getElementById("confFactors").innerHTML=
+    `<div>实力差 <b>${Math.abs(gap)}</b></div><div>主流结果 <b>${(topO*100).toFixed(0)}%</b></div><div>期望总进球 <b>${(lamA+lamB).toFixed(1)}</b></div>`;
+  const g=document.getElementById("gauge"), a1=Math.PI*(1-sc/100);
+  const pt=a=>[75+65*Math.cos(a),79-65*Math.sin(a)];
+  const [sx,sy]=pt(Math.PI),[ex,ey]=pt(0),[vx,vy]=pt(a1);
+  g.innerHTML=`<path d="M ${sx} ${sy} A 65 65 0 0 1 ${ex} ${ey}" fill="none" stroke="#26303E" stroke-width="10" stroke-linecap="round"/>
+     <path d="M ${sx} ${sy} A 65 65 0 ${sc>50?1:0} 1 ${vx} ${vy}" fill="none" stroke="${col}" stroke-width="10" stroke-linecap="round"/>
+     <text x="75" y="74" text-anchor="middle" fill="${col}" font-family="IBM Plex Mono" font-size="22" font-weight="600">${sc.toFixed(0)}</text>`;
+}
+
+selA.onchange=render; selB.onchange=render;
+document.querySelectorAll("#venue button").forEach(b=>b.onclick=()=>{venue=b.dataset.v;
+  document.querySelectorAll("#venue button").forEach(x=>x.classList.toggle("on",x===b));render();});
+document.getElementById("srcLoad").onclick=()=>loadLive(document.getElementById("srcUrl").value);
+[["wm","m","wmV"],["wk","k","wkV"],["wq","q","wqV"]].forEach(([id,key,vid])=>{
+  document.getElementById(id).oninput=e=>{
+    W[key]=(+e.target.value)/100;
+    document.getElementById(vid).textContent=W[key].toFixed(2);
+    renderFixtures();
+  };
+});
+
+render();                                   // draw with priors immediately
+loadLive(document.getElementById("srcUrl").value);   // try live on load
+setInterval(()=>loadLive(document.getElementById("srcUrl").value), 3600*1000); // hourly auto-refresh
+</script>
+</body>
+</html>
